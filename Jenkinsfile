@@ -6,6 +6,9 @@ pipeline {
         DOCKERHUB_USERNAME    = 'rbens047'
         IMAGE_NAME            = "${DOCKERHUB_USERNAME}/redabensalah-app"
         IMAGE_TAG             = "${BUILD_NUMBER}"
+
+        // 🔥 FIX: isolate docker config to avoid mac credential helper issue
+        DOCKER_CONFIG         = "/tmp/docker-config"
         DOCKER                = "/usr/local/bin/docker"
     }
 
@@ -13,52 +16,69 @@ pipeline {
 
         stage('Reda Bensalah - Build Docker Image') {
             steps {
+                echo 'Preparing safe Docker environment...'
+                sh '''
+                    mkdir -p /tmp/docker-config
+                    echo "{}" > /tmp/docker-config/config.json
+                '''
+
                 echo 'Building Docker image...'
-                sh """
-                    ${DOCKER} build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                    ${DOCKER} tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
-                """
-                echo "Image built: ${IMAGE_NAME}:${IMAGE_TAG}"
+                sh '''
+                    DOCKER_CONFIG=/tmp/docker-config \
+                    /usr/local/bin/docker build -t $IMAGE_NAME:$IMAGE_TAG .
+
+                    DOCKER_CONFIG=/tmp/docker-config \
+                    /usr/local/bin/docker tag $IMAGE_NAME:$IMAGE_TAG $IMAGE_NAME:latest
+                '''
             }
         }
 
         stage('Reda Bensalah - Login to Dockerhub') {
             steps {
                 echo 'Logging in to Docker Hub...'
-                sh """
+                sh '''
                     echo $DOCKERHUB_CREDENTIALS_PSW | \
-                    ${DOCKER} login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
-                """
-                echo 'Successfully logged in to Docker Hub'
+                    DOCKER_CONFIG=/tmp/docker-config \
+                    /usr/local/bin/docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
+                '''
             }
         }
 
         stage('Reda Bensalah - Push image to Dockerhub') {
             steps {
                 echo 'Pushing image to Docker Hub...'
-                sh """
-                    ${DOCKER} push ${IMAGE_NAME}:${IMAGE_TAG}
-                    ${DOCKER} push ${IMAGE_NAME}:latest
-                """
-                echo "Image pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
+                sh '''
+                    DOCKER_CONFIG=/tmp/docker-config \
+                    /usr/local/bin/docker push $IMAGE_NAME:$IMAGE_TAG
+
+                    DOCKER_CONFIG=/tmp/docker-config \
+                    /usr/local/bin/docker push $IMAGE_NAME:latest
+                '''
             }
         }
     }
 
     post {
         always {
-            echo 'Cleaning up local Docker images...'
-            sh """
-                ${DOCKER} rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
-                ${DOCKER} rmi ${IMAGE_NAME}:latest || true
-                ${DOCKER} logout || true
-            """
+            echo 'Cleaning up...'
+            sh '''
+                DOCKER_CONFIG=/tmp/docker-config \
+                /usr/local/bin/docker rmi $IMAGE_NAME:$IMAGE_TAG || true
+
+                DOCKER_CONFIG=/tmp/docker-config \
+                /usr/local/bin/docker rmi $IMAGE_NAME:latest || true
+
+                DOCKER_CONFIG=/tmp/docker-config \
+                /usr/local/bin/docker logout || true
+            '''
         }
+
         success {
-            echo 'Pipeline completed successfully!'
+            echo 'Pipeline SUCCESS 🎉'
         }
+
         failure {
-            echo 'Pipeline failed. Check the logs above.'
+            echo 'Pipeline FAILED ❌ Check logs'
         }
     }
 }
