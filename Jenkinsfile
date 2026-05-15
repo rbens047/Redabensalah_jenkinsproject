@@ -6,6 +6,7 @@ pipeline {
         DOCKERHUB_USERNAME    = 'rbens047'
         IMAGE_NAME            = "${DOCKERHUB_USERNAME}/redabensalah-app"
         IMAGE_TAG             = "${BUILD_NUMBER}"
+        DOCKER                = "/usr/local/bin/docker"
     }
 
     stages {
@@ -14,8 +15,8 @@ pipeline {
             steps {
                 echo 'Building Docker image...'
                 sh """
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
-                    docker tag  ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+                    ${DOCKER} build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                    ${DOCKER} tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
                 """
                 echo "Image built: ${IMAGE_NAME}:${IMAGE_TAG}"
             }
@@ -24,10 +25,10 @@ pipeline {
         stage('Reda Bensalah - Login to Dockerhub') {
             steps {
                 echo 'Logging in to Docker Hub...'
-                sh '''
+                sh """
                     echo $DOCKERHUB_CREDENTIALS_PSW | \
-                    docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
-                '''
+                    ${DOCKER} login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
+                """
                 echo 'Successfully logged in to Docker Hub'
             }
         }
@@ -36,8 +37,8 @@ pipeline {
             steps {
                 echo 'Pushing image to Docker Hub...'
                 sh """
-                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                    docker push ${IMAGE_NAME}:latest
+                    ${DOCKER} push ${IMAGE_NAME}:${IMAGE_TAG}
+                    ${DOCKER} push ${IMAGE_NAME}:latest
                 """
                 echo "Image pushed: ${IMAGE_NAME}:${IMAGE_TAG}"
             }
@@ -48,9 +49,9 @@ pipeline {
         always {
             echo 'Cleaning up local Docker images...'
             sh """
-                docker rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
-                docker rmi ${IMAGE_NAME}:latest       || true
-                docker logout                          || true
+                ${DOCKER} rmi ${IMAGE_NAME}:${IMAGE_TAG} || true
+                ${DOCKER} rmi ${IMAGE_NAME}:latest || true
+                ${DOCKER} logout || true
             """
         }
         success {
